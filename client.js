@@ -156,7 +156,7 @@ function sendPositionUpdate() {
 }
 
 function sendGloveSettings() {
-    if (ws.readyState !== WebSocket.OPEN) return;
+    if (!isOwner || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({
         type:      'glove_settings',
         offsetX:   parseFloat(document.getElementById('gOffsetX').value)   || 0,
