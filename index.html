@@ -9,12 +9,17 @@
     <p>Server Status: <span id="status" style="color: orange;">Connecting...</span></p>
 
     <script>
-        const socket = new WebSocket('wss://cairo-scarf.tun.ply.gg:25565');
+        const socket = new WebSocket('wss://faster-conjoined-angling.ngrok-free.dev');
         const statusText = document.getElementById('status');
 
         socket.onopen = () => {
             statusText.innerText = "Connected to Server Live on PC!";
             statusText.style.color = "lightgreen";
+            console.log("Multiplayer channel opened successfully.");
+        };
+
+        socket.onmessage = (event) => {
+            console.log("Data received from server:", event.data);
         };
 
         socket.onclose = () => {
