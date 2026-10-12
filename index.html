@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Multiplayer Game</title>
+</head>
+<body style="background: #111; color: white; text-align: center; font-family: sans-serif; padding-top: 50px;">
+    <h1>My Free Multiplayer Game Website</h1>
+    <p>Server Status: <span id="status" style="color: orange;">Connecting...</span></p>
+
+    <script>
+        // Your hidden playit tunnel address
+        const socket = new WebSocket('ws://cairo-percentages.tun.ply.gg');
+        const statusText = document.getElementById('status');
+
+        socket.onopen = () => {
+            statusText.innerText = "Connected to Server Live on PC!";
+            statusText.style.color = "lightgreen";
+        };
+
+        socket.onclose = () => {
+            statusText.innerText = "Offline (PC server is turned off)";
+            statusText.style.color = "red";
+        };
+    </script>
+</body>
+</html>
