@@ -50,8 +50,29 @@ ws.onmessage = (event) => {
         loadImages();
     } 
     else if (data.type === 'state') {
-        serverPlayers = data.players;
-        serverItems = data.items;
+        const newPlayers = {};
+        for (let id in data.players) {
+            if (serverPlayers[id]) {
+                Object.assign(serverPlayers[id], data.players[id]);
+                newPlayers[id] = serverPlayers[id];
+            } else {
+                newPlayers[id] = data.players[id];
+            }
+        }
+        serverPlayers = newPlayers;
+
+        const newItems = [];
+        for (let i = 0; i < data.items.length; i++) {
+            const incoming = data.items[i];
+            const existing = serverItems.find(item => item.id === incoming.id);
+            if (existing) {
+                Object.assign(existing, incoming);
+                newItems.push(existing);
+            } else {
+                newItems.push(incoming);
+            }
+        }
+        serverItems = newItems;
 
         if (serverPlayers[myId]) {
             localInventory = serverPlayers[myId].inventory;
@@ -494,14 +515,26 @@ function render() {
     myP.renderX = myP.cx;
     myP.renderY = myP.cy;
 
+    const scaledMouseX = WORLD.INPUTS.mouseX / WORLD.SYSTEM.viewScale;
+    const scaledMouseY = WORLD.INPUTS.mouseY / WORLD.SYSTEM.viewScale;
+    const playerScreenX = myP.renderX - WORLD.CAMERA.x + (myP.width / 2);
+    const playerScreenY = myP.renderY - WORLD.CAMERA.y + (myP.height / 2);
+    myP.angle = Math.atan2(scaledMouseY - playerScreenY, scaledMouseX - playerScreenX) + (Math.PI / 2);
+    myP.renderAngle = myP.angle;
+
     Object.values(serverPlayers).forEach(p => {
         if (p.id !== myId) {
             if (p.renderX === undefined) {
                 p.renderX = p.x;
                 p.renderY = p.y;
+                p.renderAngle = p.angle;
             } else {
                 p.renderX += (p.x - p.renderX) * 0.3;
                 p.renderY += (p.y - p.renderY) * 0.3;
+                let diff = p.angle - p.renderAngle;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                p.renderAngle += diff * 0.3;
             }
         }
     });
@@ -531,10 +564,11 @@ function render() {
     const targetCamX = myP.renderX + (myP.width / 2) - (WORLD.CAMERA.width / 2);
     const targetCamY = myP.renderY + (myP.height / 2) - (WORLD.CAMERA.height / 2);
     if (WORLD.CAMERA.x === null) {
-        WORLD.CAMERA.x = targetCamX; WORLD.CAMERA.y = targetCamY;
+        WORLD.CAMERA.x = targetCamX; 
+        WORLD.CAMERA.y = targetCamY;
     } else {
-        WORLD.CAMERA.x += (targetCamX - WORLD.CAMERA.x) * 0.25;
-        WORLD.CAMERA.y += (targetCamY - WORLD.CAMERA.y) * 0.25;
+        WORLD.CAMERA.x += (targetCamX - WORLD.CAMERA.x) * 0.15;
+        WORLD.CAMERA.y += (targetCamY - WORLD.CAMERA.y) * 0.15;
     }
 
     ctx.fillStyle = "#000000";
@@ -566,11 +600,11 @@ function render() {
             let t = Math.max(0, Math.min(1, 1 - (item.animTimer / 0.3)));
             let ease = 1 - Math.pow(1 - t, 3);
             scale = 0.95 * ease;
-            rot = item.targetRotation * ease + ((serverPlayers[item.pickerId || myId]?.angle || 0)) * (1 - ease);
+            rot = item.targetRotation * ease + ((serverPlayers[item.pickerId || myId]?.renderAngle || 0)) * (1 - ease);
         } else if (item.animState === 'picking_up') {
             let t = Math.max(0, Math.min(1, item.animTimer / 0.2)); 
             scale = 0.95 * t;
-            rot = item.targetRotation * t + ((serverPlayers[item.pickerId]?.angle || 0)) * (1 - t);
+            rot = item.targetRotation * t + ((serverPlayers[item.pickerId]?.renderAngle || 0)) * (1 - t);
         }
         
         ctx.rotate(rot);
@@ -590,7 +624,7 @@ function render() {
         if (p.inventory[p.inventorySelected] === 'glove') {
             ctx.save();
             ctx.translate(pRenderX, pRenderY);
-            ctx.rotate(p.angle);
+            ctx.rotate(p.renderAngle);
             ctx.translate(p.renderState.equipOffsetX, p.renderState.equipOffsetY);
             ctx.rotate((p.renderState.equipRot * Math.PI / 180) + p.renderState.animRotation);
             ctx.translate(0, -p.renderState.animPokeOffset);
@@ -600,7 +634,7 @@ function render() {
 
         ctx.save();
         ctx.translate(pRenderX, pRenderY);
-        ctx.rotate(p.angle);
+        ctx.rotate(p.renderAngle);
         ctx.drawImage(playerImg, -pScaledW / 2, -pScaledH / 2, pScaledW, pScaledH);
         ctx.restore();
 
