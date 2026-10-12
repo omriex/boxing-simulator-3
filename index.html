@@ -2,30 +2,77 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>My Multiplayer Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boxing Simulator 3</title>
+    <link rel="icon" type="image/png" href="assets/icon.png">
+    <link rel="stylesheet" href="style.css">
 </head>
-<body style="background: #111; color: white; text-align: center; font-family: sans-serif; padding-top: 50px;">
-    <h1>My Free Multiplayer Game Website</h1>
-    <p>Server Status: <span id="status" style="color: orange;">Connecting...</span></p>
+<body>
 
-    <script>
-        const socket = new WebSocket('wss://faster-conjoined-angling.ngrok-free.dev');
-        const statusText = document.getElementById('status');
+<div id="loading-screen">
+    <img src="assets/icon.png" style="width: 128px; height: 128px; margin-bottom: 20px; image-rendering: pixelated;">
+    <div style="font-size: 32px; margin-bottom: 10px;">Boxing Simulator 3 Multiplayer</div>
+    <div style="font-size: 16px; color: #888;" id="loading-text">CONNECTING TO SERVER...</div>
+</div>
 
-        socket.onopen = () => {
-            statusText.innerText = "Connected to Server Live on PC!";
-            statusText.style.color = "lightgreen";
-            console.log("Multiplayer channel opened successfully.");
-        };
+<canvas id="gameCanvas"></canvas>
 
-        socket.onmessage = (event) => {
-            console.log("Data received from server:", event.data);
-        };
+<div id="editor-ui">
+    <button id="editor-toggle-btn" class="layer-btn" style="width: 190px;">Editor: OFF</button>
+    <div id="editor-tools" style="display: none; flex-direction: column; gap: 10px;">
+        <div id="layer-toggles">
+            <button class="layer-btn active" data-layer="background">Floor</button>
+            <button class="layer-btn" data-layer="floor2">Floor 2</button>
+            <button class="layer-btn" data-layer="walls">Wall</button>
+            <button class="layer-btn" data-layer="trees">Tree</button>
+        </div>
+        <div id="palette"></div>
+        <div id="glove-ui">
+            <div style="font-weight: bold; text-align: center; margin-bottom: 5px;">Glove Settings</div>
+            <label style="display: flex; justify-content: space-between;">Off X: <input type="number" id="gOffsetX" value="20" style="width: 50px;"></label>
+            <label style="display: flex; justify-content: space-between;">Off Y: <input type="number" id="gOffsetY" value="-26" style="width: 50px;"></label>
+            <label style="display: flex; justify-content: space-between;">Width: <input type="number" id="gWidth" value="22" style="width: 50px;"></label>
+            <label style="display: flex; justify-content: space-between;">Height: <input type="number" id="gHeight" value="29" style="width: 50px;"></label>
+            <label style="display: flex; justify-content: space-between; align-items: center;">Rot: 
+                <input type="range" id="gRotationSlider" min="-180" max="180" value="0" style="width: 60px;">
+                <input type="number" id="gRotation" value="0" style="width: 40px;">
+            </label>
+            <label style="display: flex; justify-content: space-between; align-items: center;">Speed: 
+                <input type="range" id="gSpeedSlider" min="0.1" max="5" step="0.1" value="1.2" style="width: 60px;">
+                <input type="number" id="gSpeed" value="1.2" step="0.1" style="width: 40px;">
+            </label>
+            <label style="display: flex; justify-content: space-between; align-items: center;">Anim: 
+                <select id="gAnimType" style="width: 80px; background: #333; color: white; border: 1px solid #555; padding: 2px;">
+                    <option value="none">None</option>
+                    <option value="poke">Poke</option>
+                    <option value="swing1">Swing1</option>
+                    <option value="swing2" selected>Swing2</option>
+                </select>
+            </label>
+        </div>
+    </div>
+</div>
 
-        socket.onclose = () => {
-            statusText.innerText = "Offline (PC server is turned off)";
-            statusText.style.color = "red";
-        };
-    </script>
+<div id="leaderboard-ui">
+    <div id="leaderboard-header">
+        <span>LEADERBOARD</span>
+        <span id="leaderboard-toggle">▼</span>
+    </div>
+    <div id="leaderboard-list"></div>
+</div>
+
+<div id="inventory-ui">
+    <div class="inv-slot"></div>
+    <div class="inv-slot"></div>
+    <div class="inv-slot"></div>
+    <div class="inv-slot"></div>
+    <div class="inv-slot"></div>
+</div>
+
+<div id="tooltip-ui">
+    <div id="tooltip-header"></div>
+</div>
+
+<script src="client.js"></script>
 </body>
 </html>
