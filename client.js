@@ -671,7 +671,8 @@ function handleMapEdit(screenX, screenY) {
 }
 
 function initEditorUI() {
-    const palette      = document.getElementById('palette');
+    const palette = document.getElementById('palette');
+    if (!palette) return;
     const desiredTiles = [{ name: 'Grass', col: 0, row: 0 }, { name: 'Dirt', col: 1, row: 0 }, { name: 'Stone', col: 0, row: 1 }];
 
     desiredTiles.forEach((tile, idx) => {
