@@ -1,0 +1,218 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #000;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none;
+}
+
+#gameCanvas {
+    display: block;
+}
+
+#loading-screen {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #111;
+    color: white; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    z-index: 9999;
+}
+
+#editor-ui {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+}
+
+#layer-toggles {
+    display: flex;
+    gap: 5px;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.layer-btn {
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: 2px solid transparent;
+    padding: 8px 14px;
+    font-weight: bold;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.layer-btn:hover {
+    border-color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.layer-btn.active {
+    border-color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.9);
+}
+
+#palette {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-start;
+}
+
+.tile-btn {
+    width: 64px;
+    height: 64px;
+    outline: 2px solid transparent; 
+    cursor: pointer;
+    background-color: rgba(0, 0, 0, 0.4); 
+    background-repeat: no-repeat;
+    transition: outline-color 0.1s;
+}
+
+.tile-btn:hover {
+    outline-color: #ffffff;
+    z-index: 1;
+}
+
+.tile-btn.selected {
+    outline-color: #ffffff;
+    z-index: 1;
+}
+
+.eraser-btn {
+    background-color: rgba(0, 0, 0, 0.6);
+}
+
+#glove-ui {
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 10px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 13px;
+    width: 170px;
+}
+
+#glove-ui input[type="number"] {
+    background: #333;
+    color: white;
+    border: 1px solid #555;
+    text-align: center;
+}
+
+#leaderboard-ui {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 1000;
+    width: 220px;
+}
+
+#leaderboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 8px 14px;
+    font-weight: bold;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+#leaderboard-header:hover {
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+#leaderboard-toggle {
+    transition: transform 0.2s ease;
+    font-size: 10px;
+}
+
+#leaderboard-list {
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 10px 14px;
+}
+
+.leaderboard-entry {
+    display: flex;
+    justify-content: space-between;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 2px;
+}
+
+#inventory-ui {
+    position: fixed;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 1000;
+}
+
+.inv-slot {
+    width: 64px;
+    height: 64px;
+    background-color: rgba(0, 0, 0, 0.6);
+    outline: 2px solid transparent; 
+    transition: outline-color 0.1s;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.inv-slot:hover, .inv-slot.selected {
+    outline-color: #ffffff;
+    z-index: 1;
+}
+
+#drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    width: 64px;
+    height: 64px;
+    background-size: 70%;
+    background-repeat: no-repeat;
+    background-position: center;
+    display: none;
+}
+
+#tooltip-ui {
+    position: fixed;
+    display: none;
+    flex-direction: column;
+    background-color: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    pointer-events: none;
+    transform: translateX(-50%);
+}
+
+#tooltip-header {
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 8px 14px;
+    font-weight: bold;
+    font-size: 13px;
+}
