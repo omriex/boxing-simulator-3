@@ -460,8 +460,9 @@ function render() {
     ctx.strokeStyle = 'rgba(0,0,0,0.85)';
     ctx.font       = "bold 13px 'Segoe UI'";
     ctx.fillStyle  = '#ffffff';
-    ctx.strokeText(myName, pRenderX, pRenderY - pScaledH / 2 - 16);
-    ctx.fillText(myName,   pRenderX, pRenderY - pScaledH / 2 - 16);
+    const myLabel = myName + (isOwner ? ' 👑' : '');
+    ctx.strokeText(myLabel, pRenderX, pRenderY - pScaledH / 2 - 16);
+    ctx.fillText(myLabel,   pRenderX, pRenderY - pScaledH / 2 - 16);
 
     
     if (WORLD.NEAREST_ITEM && WORLD.INVENTORY.includes(null)) {
