@@ -1,19 +1,13 @@
-// ─── client.js ──────────────────────────────────────────────────────────────
-// Movement is CLIENT-AUTHORITATIVE: local physics runs in update(), result
-// is sent to server as position_update each frame. Server just clamps+relays.
-// Other players are rendered from interpolated server state.
-
 document.addEventListener('contextmenu', event => event.preventDefault());
 
-// Append ?token=... from page URL to WS URL so server can verify owner
 const _pageToken = new URLSearchParams(window.location.search).get('token') || '';
 const _wsURL     = 'wss://faster-conjoined-angling.ngrok-free.dev' + (_pageToken ? `?token=${encodeURIComponent(_pageToken)}` : '');
 const ws = new WebSocket(_wsURL);
 
 let myId     = null;
-let myName   = 'Boxer???';      // assigned by server on init
-let isOwner  = false;          // true if URL token matches server secret
-let serverPlayers = {};        // other players only — keyed by id
+let myName   = 'Boxer???';      
+let isOwner  = false;          
+let serverPlayers = {};        
 let serverItems   = [];
 
 const canvas = document.getElementById('gameCanvas');
@@ -21,8 +15,6 @@ const ctx    = canvas.getContext('2d', { alpha: false });
 
 const LOGICAL_WIDTH  = 1280;
 const LOGICAL_HEIGHT = 720;
-
-// ─── world state ─────────────────────────────────────────────────────────────
 
 const WORLD = {
     MAP: {
@@ -45,8 +37,6 @@ const WORLD = {
     NEAREST_ITEM: null
 };
 
-// ─── local player entity (index.html physics, no server authority) ────────────
-
 const ME = {
     x: 0, y: 0,
     width: 45, height: 45,
@@ -61,8 +51,6 @@ const GLOVE = {
     cooldown: 0, equipTimer: 0
 };
 
-// ─── assets ──────────────────────────────────────────────────────────────────
-
 const tilesheetImg = new Image();
 const playerImg    = new Image();
 const gloveImg     = new Image();
@@ -71,8 +59,6 @@ let dragIndex = -1;
 const dragGhost = document.createElement('div');
 dragGhost.id = 'drag-ghost';
 document.body.appendChild(dragGhost);
-
-// ─── websocket messages ───────────────────────────────────────────────────────
 
 ws.onopen = () => console.log('[ws] connected');
 
@@ -92,17 +78,18 @@ ws.onmessage = (event) => {
         ME.x = (WORLD.MAP.columns * WORLD.MAP.tileSize) / 2;
         ME.y = (WORLD.MAP.rows    * WORLD.MAP.tileSize) / 2;
 
-        // Show editor toggle only for owner
+        
+        
         if (!isOwner) {
-            const editorBtn = document.getElementById('editor-toggle-btn');
-            if (editorBtn) editorBtn.style.display = 'none';
+            const editorUi = document.getElementById('editor-ui');
+            if (editorUi) editorUi.parentNode.removeChild(editorUi);
         }
 
         document.getElementById('loading-text').innerText = 'LOADING ASSETS...';
         loadImages();
 
     } else if (data.type === 'state') {
-        // Rebuild serverPlayers — skip myId, we drive ourselves
+        
         const next = {};
         for (const id in data.players) {
             if (parseInt(id) === myId) continue;
@@ -117,7 +104,7 @@ ws.onmessage = (event) => {
         }
         serverPlayers = next;
 
-        // Items
+        
         const nextItems = [];
         for (const incoming of data.items) {
             const existing = serverItems.find(i => i.id === incoming.id);
@@ -130,7 +117,7 @@ ws.onmessage = (event) => {
         }
         serverItems = nextItems;
 
-        // Sync inventory + name from server
+        
         if (data.players[myId]) {
             WORLD.INVENTORY          = data.players[myId].inventory;
             WORLD.INVENTORY_SELECTED = data.players[myId].inventorySelected;
@@ -150,12 +137,10 @@ ws.onmessage = (event) => {
     }
 };
 
-// ─── send position each frame ─────────────────────────────────────────────────
-
 function sendPositionUpdate() {
     if (!myId || ws.readyState !== WebSocket.OPEN) return;
 
-    // Compute glove renderState here so other clients see the animation
+    
     const rs = computeGloveRenderState();
 
     ws.send(JSON.stringify({
@@ -183,8 +168,6 @@ function sendGloveSettings() {
         animSpeed: parseFloat(document.getElementById('gSpeed').value)     || 1
     }));
 }
-
-// ─── physics (mirrors index.html update() exactly) ───────────────────────────
 
 function resolveCircleCollisions() {
     const scale  = ME.scale;
@@ -228,7 +211,7 @@ function resolveCircleCollisions() {
 }
 
 function update(dt) {
-    // ── inventory equip detection ─────────────────────────────────────────────
+    
     const currentEquipped = WORLD.INVENTORY[WORLD.INVENTORY_SELECTED];
     if (currentEquipped !== WORLD.INVENTORY_LAST_EQUIPPED) {
         if (currentEquipped === 'glove') {
@@ -239,7 +222,7 @@ function update(dt) {
     }
     if (GLOVE.equipTimer > 0) GLOVE.equipTimer = Math.max(0, GLOVE.equipTimer - dt);
 
-    // ── input ─────────────────────────────────────────────────────────────────
+    
     let inputX = 0, inputY = 0;
     if (WORLD.INPUTS.keys.w || WORLD.INPUTS.keys.arrowup)    inputY -= 1;
     if (WORLD.INPUTS.keys.s || WORLD.INPUTS.keys.arrowdown)  inputY += 1;
@@ -256,7 +239,7 @@ function update(dt) {
     ME.bopTimer = intentSprint ? ME.bopTimer + dt : 0;
     ME.scale    = 1 + (ME.bopTimer > 0 ? Math.sin(ME.bopTimer * 15) * 0.05 : 0);
 
-    // ── velocity integration (identical constants to index.html) ──────────────
+    
     const friction = Math.pow(0.001, dt);
     const accel    = intentSprint ? 1866 : 1493;
 
@@ -267,29 +250,29 @@ function update(dt) {
     ME.x  += ME.vx * dt;
     ME.y  += ME.vy * dt;
 
-    // ── collision: 3 iterations ───────────────────────────────────────────────
+    
     for (let i = 0; i < 3; i++) resolveCircleCollisions();
 
-    // ── world bounds ──────────────────────────────────────────────────────────
+    
     if (ME.x < 0) ME.x = 0;
     if (ME.y < 0) ME.y = 0;
     if (ME.x + ME.width  > WORLD.MAP.columns * WORLD.MAP.tileSize) ME.x = WORLD.MAP.columns * WORLD.MAP.tileSize - ME.width;
     if (ME.y + ME.height > WORLD.MAP.rows    * WORLD.MAP.tileSize) ME.y = WORLD.MAP.rows    * WORLD.MAP.tileSize - ME.height;
 
-    // ── mouse angle ───────────────────────────────────────────────────────────
+    
     const smX = WORLD.INPUTS.mouseX / WORLD.SYSTEM.viewScale;
     const smY = WORLD.INPUTS.mouseY / WORLD.SYSTEM.viewScale;
     const psX = ME.x - WORLD.CAMERA.x + ME.width  / 2;
     const psY = ME.y - WORLD.CAMERA.y + ME.height / 2;
     ME.angle  = Math.atan2(smY - psY, smX - psX) + (Math.PI / 2);
 
-    // ── glove cooldown ────────────────────────────────────────────────────────
+    
     if (GLOVE.cooldown > 0) GLOVE.cooldown -= dt * GLOVE.animSpeed;
     if (WORLD.INPUTS.isMouseDown && currentEquipped === 'glove' && GLOVE.cooldown <= 0 && GLOVE.equipTimer <= 0) {
         GLOVE.cooldown = 0.8;
     }
 
-    // ── camera (tight exponential lerp from index.html) ───────────────────────
+    
     const targetCamX = ME.x + ME.width  / 2 - WORLD.CAMERA.width  / 2;
     const targetCamY = ME.y + ME.height / 2 - WORLD.CAMERA.height / 2;
     if (WORLD.CAMERA.x === null) {
@@ -301,7 +284,7 @@ function update(dt) {
         WORLD.CAMERA.y += (targetCamY - WORLD.CAMERA.y) * lf;
     }
 
-    // ── nearest item ──────────────────────────────────────────────────────────
+    
     let nearestDist = Infinity;
     WORLD.NEAREST_ITEM = null;
     const px = ME.x + ME.width  / 2;
@@ -317,7 +300,7 @@ function update(dt) {
         if (dist < 70 && dist < nearestDist) { nearestDist = dist; WORLD.NEAREST_ITEM = item; }
     });
 
-    // ── interpolate other players ─────────────────────────────────────────────
+    
     for (const id in serverPlayers) {
         const p = serverPlayers[id];
         if (p.renderX === undefined) { p.renderX = p.x; p.renderY = p.y; p.renderAngle = p.angle || 0; }
@@ -329,11 +312,9 @@ function update(dt) {
         p.renderAngle += diff * 0.3;
     }
 
-    // ── send position to server every frame ───────────────────────────────────
+    
     sendPositionUpdate();
 }
-
-// ─── glove render state helper ────────────────────────────────────────────────
 
 function computeGloveRenderState() {
     let animPokeOffset = 0, animRotation = 0;
@@ -368,8 +349,6 @@ function computeGloveRenderState() {
     return { animPokeOffset, animRotation, equipOffsetX, equipOffsetY, equipRot };
 }
 
-// ─── render ───────────────────────────────────────────────────────────────────
-
 function render() {
     if (!WORLD.SYSTEM.isReady) return;
 
@@ -381,7 +360,7 @@ function render() {
     const camX = Math.round(WORLD.CAMERA.x);
     const camY = Math.round(WORLD.CAMERA.y);
 
-    // ── bg chunks ─────────────────────────────────────────────────────────────
+    
     const startCX = Math.max(0, Math.floor(camX / WORLD.MAP.chunkSize));
     const endCX   = Math.min(WORLD.MAP.bgChunks[0].length - 1, Math.floor((camX + WORLD.CAMERA.width)  / WORLD.MAP.chunkSize));
     const startCY = Math.max(0, Math.floor(camY / WORLD.MAP.chunkSize));
@@ -391,7 +370,7 @@ function render() {
         for (let cx = startCX; cx <= endCX; cx++)
             ctx.drawImage(WORLD.MAP.bgChunks[cy][cx], cx * WORLD.MAP.chunkSize - camX, cy * WORLD.MAP.chunkSize - camY, WORLD.MAP.chunkSize + 0.5, WORLD.MAP.chunkSize + 0.5);
 
-    // ── dropped items ─────────────────────────────────────────────────────────
+    
     serverItems.forEach(item => {
         ctx.save();
         ctx.translate((item.renderX ?? item.x) - camX, (item.renderY ?? item.y) - camY);
@@ -413,7 +392,7 @@ function render() {
         ctx.restore();
     });
 
-    // ── draw other players ────────────────────────────────────────────────────
+    
     for (const id in serverPlayers) {
         const p = serverPlayers[id];
         const pRX = (p.renderX ?? p.x) - camX + p.width  / 2;
@@ -421,7 +400,7 @@ function render() {
         const sW  = p.width  * (p.scale || 1);
         const sH  = p.height * (p.scale || 1);
 
-        // other player's glove
+        
         if (p.inventory && p.inventory[p.inventorySelected] === 'glove' && p.glove && p.renderState) {
             const rs = p.renderState;
             ctx.save();
@@ -446,11 +425,12 @@ function render() {
         ctx.strokeStyle = 'rgba(0,0,0,0.85)';
         ctx.font       = "bold 13px 'Segoe UI'";
         ctx.fillStyle  = '#ffffff';
-        ctx.strokeText(p.name, pRX, pRY - sH / 2 - 16);
-        ctx.fillText(p.name, pRX, pRY - sH / 2 - 16);
+        const pLabel = p.name + (p.isOwner ? ' 👑' : '');
+        ctx.strokeText(pLabel, pRX, pRY - sH / 2 - 16);
+        ctx.fillText(pLabel, pRX, pRY - sH / 2 - 16);
     }
 
-    // ── draw local player ─────────────────────────────────────────────────────
+    
     const pRenderX = ME.x - camX + ME.width  / 2;
     const pRenderY = ME.y - camY + ME.height / 2;
     const pScaledW = ME.width  * ME.scale;
@@ -483,7 +463,7 @@ function render() {
     ctx.strokeText(myName, pRenderX, pRenderY - pScaledH / 2 - 16);
     ctx.fillText(myName,   pRenderX, pRenderY - pScaledH / 2 - 16);
 
-    // ── pickup prompt ─────────────────────────────────────────────────────────
+    
     if (WORLD.NEAREST_ITEM && WORLD.INVENTORY.includes(null)) {
         ctx.save();
         ctx.translate((WORLD.NEAREST_ITEM.renderX ?? WORLD.NEAREST_ITEM.x) - camX, (WORLD.NEAREST_ITEM.renderY ?? WORLD.NEAREST_ITEM.y) - camY - 25);
@@ -497,12 +477,12 @@ function render() {
         ctx.restore();
     }
 
-    // ── fg chunks (trees) ─────────────────────────────────────────────────────
+    
     for (let cy = startCY; cy <= endCY; cy++)
         for (let cx = startCX; cx <= endCX; cx++)
             ctx.drawImage(WORLD.MAP.fgChunks[cy][cx], cx * WORLD.MAP.chunkSize - camX, cy * WORLD.MAP.chunkSize - camY, WORLD.MAP.chunkSize + 0.5, WORLD.MAP.chunkSize + 0.5);
 
-    // ── editor tile preview ───────────────────────────────────────────────────
+    
     if (WORLD.EDITOR.enabled && WORLD.EDITOR.selectedTileGid >= 0) {
         const wX  = (WORLD.INPUTS.mouseX / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.x;
         const wY  = (WORLD.INPUTS.mouseY / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.y;
@@ -532,8 +512,6 @@ function render() {
     ctx.restore();
 }
 
-// ─── game loop ────────────────────────────────────────────────────────────────
-
 function gameLoop(now) {
     requestAnimationFrame(gameLoop);
     if (!WORLD.SYSTEM.isReady || !myId) return;
@@ -545,8 +523,6 @@ function gameLoop(now) {
     update(dt);
     render();
 }
-
-// ─── map rendering ────────────────────────────────────────────────────────────
 
 function preRenderMap() {
     const numCX = Math.ceil((WORLD.MAP.columns * WORLD.MAP.tileSize) / WORLD.MAP.chunkSize);
@@ -599,8 +575,6 @@ function renderChunk(cx, cy) {
     });
 }
 
-// ─── asset loading ────────────────────────────────────────────────────────────
-
 function loadImages() {
     tilesheetImg.crossOrigin = 'Anonymous';
     tilesheetImg.onload = () => {
@@ -632,12 +606,10 @@ function onAssetLoad() {
     }
 }
 
-// ─── ui helpers ───────────────────────────────────────────────────────────────
-
 function updateLeaderboard() {
     const list = document.getElementById('leaderboard-list');
     list.innerHTML = '';
-    // Include self
+    
     const selfDiv = document.createElement('div');
     selfDiv.className = 'leaderboard-entry';
     selfDiv.innerHTML = `<span>${myName}${isOwner ? ' 👑' : ''}</span>`;
@@ -689,7 +661,7 @@ function renderInventory() {
 }
 
 function handleMapEdit(screenX, screenY) {
-    if (!isOwner) return;   // redundant guard; server also checks
+    if (!isOwner) return;   
     const worldX = (screenX / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.x;
     const worldY = (screenY / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.y;
     const col = Math.floor(worldX / WORLD.MAP.tileSize);
@@ -726,8 +698,6 @@ function initEditorUI() {
     palette.appendChild(eraser);
 }
 
-// ─── resize ───────────────────────────────────────────────────────────────────
-
 window.addEventListener('resize', resizeCanvas);
 function resizeCanvas() {
     canvas.width  = window.innerWidth;
@@ -737,8 +707,6 @@ function resizeCanvas() {
     WORLD.CAMERA.height    = canvas.height / WORLD.SYSTEM.viewScale;
     ctx.imageSmoothingEnabled = false;
 }
-
-// ─── input wiring ─────────────────────────────────────────────────────────────
 
 function preventZoom(e) {
     if (e.ctrlKey || e.metaKey) {
@@ -831,7 +799,7 @@ document.querySelectorAll('#editor-ui .layer-btn').forEach(btn => {
         if (id === 'gRotation')       document.getElementById('gRotationSlider').value = e.target.value;
         if (id === 'gSpeedSlider')    document.getElementById('gSpeed').value = e.target.value;
         if (id === 'gSpeed')          document.getElementById('gSpeedSlider').value = e.target.value;
-        // Sync local GLOVE object so rendering is instant, then push to server
+        
         GLOVE.offsetX   = parseFloat(document.getElementById('gOffsetX').value)  || 0;
         GLOVE.offsetY   = parseFloat(document.getElementById('gOffsetY').value)  || 0;
         GLOVE.width     = parseFloat(document.getElementById('gWidth').value)    || GLOVE.width;
