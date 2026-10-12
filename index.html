@@ -9,8 +9,7 @@
     <p>Server Status: <span id="status" style="color: orange;">Connecting...</span></p>
 
     <script>
-        // Your hidden playit tunnel address
-        const socket = new WebSocket('wss://cairo-percentages.tun.ply.gg');
+        const socket = new WebSocket('wss://cairo-scarf.tun.ply.gg:25565');
         const statusText = document.getElementById('status');
 
         socket.onopen = () => {
