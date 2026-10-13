@@ -625,7 +625,7 @@ function updateLeaderboard() {
     for (const id in serverPlayers) {
         const div = document.createElement('div');
         div.className = 'leaderboard-entry';
-        div.innerHTML = `<span>${serverPlayers[id].name}</span>`;
+        div.innerHTML = `<span>${serverPlayers[id].name}${serverPlayers[id].isOwner ? ' 👑' : ''}</span>`;
         list.appendChild(div);
     }
 }
