@@ -227,9 +227,6 @@ function resolveCircleCollisions() {
     ME.y = pY - ME.height / 2;
 }
 
-// Push local ME away from all server-known other players.
-// Mirrors the server-side resolvePlayerCollisions() exactly so the local
-// player's position stays consistent with what the server will broadcast.
 function resolvePlayerCollisionsLocal() {
     const meR  = (ME.width * ME.scale) / 2;
     const mecx = ME.x + ME.width  / 2;
@@ -248,14 +245,13 @@ function resolvePlayerCollisionsLocal() {
         const dist = Math.sqrt(dX * dX + dY * dY);
 
         if (dist > 0 && dist < minDist) {
-            const overlap = minDist - dist;   // full overlap — server pushes both, client only owns ME
+            const overlap = minDist - dist;
             const nx = dX / dist;
             const ny = dY / dist;
 
             ME.x += nx * (overlap / 2);
             ME.y += ny * (overlap / 2);
 
-            // kill inward velocity component
             const dot = ME.vx * nx + ME.vy * ny;
             if (dot < 0) {
                 ME.vx -= dot * nx;
@@ -308,7 +304,6 @@ function update(dt) {
     
     for (let i = 0; i < 3; i++) resolveCircleCollisions();
 
-    // player-vs-player push (2 passes to settle tight clusters)
     for (let i = 0; i < 2; i++) resolvePlayerCollisionsLocal();
 
     
