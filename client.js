@@ -69,6 +69,14 @@ document.body.appendChild(dragGhost);
 
 ws.onopen = () => console.log('[ws] connected');
 
+ws.onclose = (e) => {
+    if (e.code === 4001) {
+        document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#111;color:white;display:flex;align-items:center;justify-content:center;font-family:Segoe UI;font-size:24px;font-weight:bold;">You have been kicked.</div>';
+    } else if (e.code === 4002 || e.code === 4003) {
+        document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#111;color:white;display:flex;align-items:center;justify-content:center;font-family:Segoe UI;font-size:24px;font-weight:bold;">You have been banned.</div>';
+    }
+};
+
 ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
 
@@ -614,6 +622,53 @@ function onAssetLoad() {
     }
 }
 
+function sendKick(targetId) {
+    ws.send(JSON.stringify({ type: 'kick', targetId }));
+}
+function sendBan(targetId) {
+    ws.send(JSON.stringify({ type: 'ban', targetId }));
+}
+
+function showAdminPanel(targetId, targetName, anchorEl) {
+    const existing = document.getElementById('admin-panel');
+    if (existing) existing.remove();
+    if (existing && existing.dataset.target === String(targetId)) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'admin-panel';
+    panel.dataset.target = String(targetId);
+    panel.style.cssText = 'position:fixed;z-index:2000;display:flex;flex-direction:column;background:rgba(0,0,0,0.9);border:2px solid rgba(255,255,255,0.15);min-width:140px;';
+
+    const header = document.createElement('div');
+    header.style.cssText = 'padding:8px 14px;font-weight:bold;font-size:13px;color:#ffffff;background:rgba(0,0,0,0.6);border-bottom:1px solid rgba(255,255,255,0.1);';
+    header.textContent = targetName;
+    panel.appendChild(header);
+
+    const kickBtn = document.createElement('button');
+    kickBtn.textContent = 'Kick';
+    kickBtn.style.cssText = 'background:transparent;color:white;border:none;border-bottom:1px solid rgba(255,255,255,0.1);padding:8px 14px;font-weight:bold;font-size:13px;cursor:pointer;text-align:left;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;';
+    kickBtn.onmouseenter = () => kickBtn.style.background = 'rgba(255,255,255,0.1)';
+    kickBtn.onmouseleave = () => kickBtn.style.background = 'transparent';
+    kickBtn.onclick = () => { sendKick(targetId); panel.remove(); };
+    panel.appendChild(kickBtn);
+
+    const banBtn = document.createElement('button');
+    banBtn.textContent = 'Ban';
+    banBtn.style.cssText = 'background:transparent;color:#ff4444;border:none;padding:8px 14px;font-weight:bold;font-size:13px;cursor:pointer;text-align:left;font-family:Segoe UI,Tahoma,Geneva,Verdana,sans-serif;';
+    banBtn.onmouseenter = () => banBtn.style.background = 'rgba(255,0,0,0.15)';
+    banBtn.onmouseleave = () => banBtn.style.background = 'transparent';
+    banBtn.onclick = () => { sendBan(targetId); panel.remove(); };
+    panel.appendChild(banBtn);
+
+    const rect = anchorEl.getBoundingClientRect();
+    panel.style.top  = rect.top + 'px';
+    panel.style.left = (rect.left - 145) + 'px';
+    document.body.appendChild(panel);
+
+    const close = (ev) => { if (!panel.contains(ev.target)) { panel.remove(); document.removeEventListener('mousedown', close); } };
+    setTimeout(() => document.addEventListener('mousedown', close), 0);
+}
+
 function updateLeaderboard() {
     const list = document.getElementById('leaderboard-list');
     list.innerHTML = '';
@@ -625,7 +680,13 @@ function updateLeaderboard() {
     for (const id in serverPlayers) {
         const div = document.createElement('div');
         div.className = 'leaderboard-entry';
-        div.innerHTML = `<span>${serverPlayers[id].name}${serverPlayers[id].isOwner ? ' 👑' : ''}</span>`;
+        const entryName = serverPlayers[id].name + (serverPlayers[id].isOwner ? ' 👑' : '');
+        div.innerHTML = `<span>${entryName}</span>`;
+        if (isOwner && !serverPlayers[id].isOwner) {
+            div.style.cursor = 'pointer';
+            div.title = 'Click to manage';
+            div.addEventListener('click', () => showAdminPanel(serverPlayers[id].id, serverPlayers[id].name, div));
+        }
         list.appendChild(div);
     }
 }
