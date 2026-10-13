@@ -2,19 +2,8 @@ document.addEventListener('contextmenu', event => event.preventDefault());
 
 const _pageToken = new URLSearchParams(window.location.search).get('token') || '';
 
-const _navEntry = performance.getEntriesByType('navigation')[0];
-const _isReload = _navEntry && (_navEntry.type === 'reload' || _navEntry.type === 'navigate');
-const _hasSid   = !!sessionStorage.getItem('_sid');
-
-if (_isReload && _hasSid) {
-} else {
-    sessionStorage.setItem('_sid', Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
-}
-const _sid = sessionStorage.getItem('_sid');
-
 const _params = new URLSearchParams();
 if (_pageToken) _params.set('token', _pageToken);
-_params.set('sid', _sid);
 const _wsURL = 'wss://faster-conjoined-angling.ngrok-free.dev/?' + _params.toString();
 const ws = new WebSocket(_wsURL);
 
@@ -668,8 +657,8 @@ function showAdminPanel(targetId, targetName, anchorEl) {
     panel.appendChild(banBtn);
 
     const rect = anchorEl.getBoundingClientRect();
-    panel.style.top  = rect.top + 'px';
-    panel.style.left = (rect.left - 145) + 'px';
+    panel.style.top   = rect.top + 'px';
+    panel.style.right = (window.innerWidth - rect.left) + 'px';
     document.body.appendChild(panel);
 
     const close = (ev) => { if (!panel.contains(ev.target)) { panel.remove(); document.removeEventListener('mousedown', close); } };
