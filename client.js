@@ -227,6 +227,44 @@ function resolveCircleCollisions() {
     ME.y = pY - ME.height / 2;
 }
 
+// Push local ME away from all server-known other players.
+// Mirrors the server-side resolvePlayerCollisions() exactly so the local
+// player's position stays consistent with what the server will broadcast.
+function resolvePlayerCollisionsLocal() {
+    const meR  = (ME.width * ME.scale) / 2;
+    const mecx = ME.x + ME.width  / 2;
+    const mecy = ME.y + ME.height / 2;
+
+    for (const id in serverPlayers) {
+        const p  = serverPlayers[id];
+        const pR = (p.width * (p.scale || 1)) / 2;
+        const minDist = meR + pR;
+
+        const pcx = p.renderX + p.width  / 2;
+        const pcy = p.renderY + p.height / 2;
+
+        const dX   = mecx - pcx;
+        const dY   = mecy - pcy;
+        const dist = Math.sqrt(dX * dX + dY * dY);
+
+        if (dist > 0 && dist < minDist) {
+            const overlap = minDist - dist;   // full overlap — server pushes both, client only owns ME
+            const nx = dX / dist;
+            const ny = dY / dist;
+
+            ME.x += nx * (overlap / 2);
+            ME.y += ny * (overlap / 2);
+
+            // kill inward velocity component
+            const dot = ME.vx * nx + ME.vy * ny;
+            if (dot < 0) {
+                ME.vx -= dot * nx;
+                ME.vy -= dot * ny;
+            }
+        }
+    }
+}
+
 function update(dt) {
     
     const currentEquipped = WORLD.INVENTORY[WORLD.INVENTORY_SELECTED];
@@ -269,6 +307,9 @@ function update(dt) {
 
     
     for (let i = 0; i < 3; i++) resolveCircleCollisions();
+
+    // player-vs-player push (2 passes to settle tight clusters)
+    for (let i = 0; i < 2; i++) resolvePlayerCollisionsLocal();
 
     
     if (ME.x < 0) ME.x = 0;
