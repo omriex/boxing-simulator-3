@@ -65,6 +65,12 @@ document.body.appendChild(dragGhost);
 
 ws.onopen = () => console.log('[ws] connected');
 
+window.addEventListener('beforeunload', () => {
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'leave' }));
+    }
+});
+
 ws.onclose = (e) => {
     if (e.code === 4001) {
         document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#111;color:white;display:flex;align-items:center;justify-content:center;font-family:Segoe UI;font-size:24px;font-weight:bold;">You have been kicked.</div>';
@@ -625,7 +631,7 @@ function sendBan(targetId) {
     ws.send(JSON.stringify({ type: 'ban', targetId }));
 }
 
-function showAdminPanel(targetId, targetName, anchorEl) {
+function showAdminPanel(targetId, targetName, mouseX, mouseY) {
     const existing = document.getElementById('admin-panel');
     if (existing) existing.remove();
     if (existing && existing.dataset.target === String(targetId)) return;
@@ -656,10 +662,15 @@ function showAdminPanel(targetId, targetName, anchorEl) {
     banBtn.onclick = () => { sendBan(targetId); panel.remove(); };
     panel.appendChild(banBtn);
 
-    const rect = anchorEl.getBoundingClientRect();
-    panel.style.top   = rect.top + 'px';
-    panel.style.right = (window.innerWidth - rect.left) + 'px';
     document.body.appendChild(panel);
+    const pw = panel.offsetWidth || 145;
+    const ph = panel.offsetHeight || 80;
+    let px = mouseX - pw;
+    let py = mouseY;
+    if (px < 4) px = mouseX;
+    if (py + ph > window.innerHeight - 4) py = window.innerHeight - ph - 4;
+    panel.style.left = px + 'px';
+    panel.style.top  = py + 'px';
 
     const close = (ev) => { if (!panel.contains(ev.target)) { panel.remove(); document.removeEventListener('mousedown', close); } };
     setTimeout(() => document.addEventListener('mousedown', close), 0);
@@ -679,9 +690,12 @@ function updateLeaderboard() {
         const entryName = serverPlayers[id].name + (serverPlayers[id].isOwner ? ' 👑' : '');
         div.innerHTML = `<span>${entryName}</span>`;
         if (isOwner && !serverPlayers[id].isOwner) {
-            div.style.cursor = 'pointer';
-            div.title = 'Click to manage';
-            div.addEventListener('click', () => showAdminPanel(serverPlayers[id].id, serverPlayers[id].name, div));
+            div.style.cursor = 'context-menu';
+            div.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showAdminPanel(serverPlayers[id].id, serverPlayers[id].name, e.clientX, e.clientY);
+            });
         }
         list.appendChild(div);
     }
