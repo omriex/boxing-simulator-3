@@ -1,15 +1,9 @@
 document.addEventListener('contextmenu', event => event.preventDefault());
 
-const _pageToken = new URLSearchParams(window.location.search).get('token') || '';
-
-const _params = new URLSearchParams();
-if (_pageToken) _params.set('token', _pageToken);
-const _wsURL = 'wss://faster-conjoined-angling.ngrok-free.dev/?' + _params.toString();
-const ws = new WebSocket(_wsURL);
-
-let myId     = null;
-let myName   = 'Boxer???';      
-let isOwner  = false;          
+let ws           = null;
+let myId         = null;
+let myName       = 'Player???';      
+let isOwner      = false;          
 let serverPlayers = {};        
 let serverItems   = [];
 
@@ -34,7 +28,7 @@ const WORLD = {
     },
     EDITOR: { enabled: false, selectedTileGid: 1, selectedLayer: 'background' },
     SYSTEM: { viewScale: 1, assetsLoaded: 0, isReady: false, lastTime: performance.now() },
-    INVENTORY:          ['glove', null, null, null, null],
+    INVENTORY:          [null, null, null, null, null],
     INVENTORY_SELECTED: 0,
     INVENTORY_LAST_EQUIPPED: null,
     NEAREST_ITEM: null
@@ -44,160 +38,136 @@ const ME = {
     x: 0, y: 0,
     width: 45, height: 45,
     vx: 0, vy: 0,
-    angle: 0, scale: 1, bopTimer: 0
-};
-
-const GLOVE = {
-    offsetX: 20, offsetY: -26,
-    width: 22, height: 29,
-    rotation: 0, animType: 'swing2', animSpeed: 1.2,
-    cooldown: 0, equipTimer: 0
+    angle: 0, scale: 1, bopTimer: 0,
+    chats: []
 };
 
 const tilesheetImg = new Image();
 const playerImg    = new Image();
-const gloveImg     = new Image();
 
 let dragIndex = -1;
 const dragGhost = document.createElement('div');
 dragGhost.id = 'drag-ghost';
 document.body.appendChild(dragGhost);
-
-ws.onopen = () => {
-    console.log('[ws] connected');
-    if (_pageToken) ws.send(JSON.stringify({ type: 'auth', token: _pageToken }));
-};
-
-window.addEventListener('beforeunload', () => {
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'leave' }));
-    }
+document.getElementById('play-btn').addEventListener('click', () => {
+    const nameInp = document.getElementById('username-input').value.trim();
+    myName = nameInp || 'Player' + Math.floor(Math.random() * 1000);
+    document.getElementById('main-menu-ui').style.display = 'none';
+    connectToServer();
 });
 
-ws.onclose = (e) => {
-    if (e.code === 4001) {
-        document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#111;color:white;display:flex;align-items:center;justify-content:center;font-family:Segoe UI;font-size:24px;font-weight:bold;">You have been kicked.</div>';
-    } else if (e.code === 4002 || e.code === 4003) {
-        document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#111;color:white;display:flex;align-items:center;justify-content:center;font-family:Segoe UI;font-size:24px;font-weight:bold;">You have been banned.</div>';
-    }
-};
-
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-
-    if (data.type === 'init') {
-        myId    = data.id;
-        isOwner = data.isOwner || false;
-        myName  = data.name || 'Boxer???';
-
-        WORLD.MAP.tileSize = data.map.tileSize;
-        WORLD.MAP.columns  = data.map.columns;
-        WORLD.MAP.rows     = data.map.rows;
-        WORLD.MAP.layers   = data.map.layers;
-
-        ME.x = (WORLD.MAP.columns * WORLD.MAP.tileSize) / 2;
-        ME.y = (WORLD.MAP.rows    * WORLD.MAP.tileSize) / 2;
-
-        // Hide editor-ui for non-owners; keep it in the DOM so the static
-        // event bindings at the bottom of this file stay live.
-        // auth_ok will flip it back to visible if the token validates.
-        const editorUi = document.getElementById('editor-ui');
-        if (editorUi) editorUi.style.display = isOwner ? '' : 'none';
-
-        document.getElementById('loading-text').innerText = 'LOADING ASSETS...';
-        loadImages();
-
-    } else if (data.type === 'auth_ok') {
-        isOwner = true;
-        // editor-ui was hidden on init — just reveal it; the static event
-        // bindings at the bottom of this file are still live on the original nodes.
-        const editorUi = document.getElementById('editor-ui');
-        if (editorUi) {
-            editorUi.style.display = '';
-            // palette may be empty if loadImages finished before auth_ok arrived;
-            // initEditorUI guards against double-population via the palette check.
-            initEditorUI();
-        }
-
-
-    } else if (data.type === 'state') {
-        
-        const next = {};
-        for (const id in data.players) {
-            if (parseInt(id) === myId) continue;
-            const incoming = data.players[id];
-            const existing = serverPlayers[id];
-            if (existing) {
-                Object.assign(existing, incoming);
-                next[id] = existing;
-            } else {
-                next[id] = { ...incoming, renderX: incoming.x, renderY: incoming.y, renderAngle: incoming.angle || 0 };
-            }
-        }
-        serverPlayers = next;
-
-        
-        const nextItems = [];
-        for (const incoming of data.items) {
-            const existing = serverItems.find(i => i.id === incoming.id);
-            if (existing) {
-                Object.assign(existing, incoming);
-                nextItems.push(existing);
-            } else {
-                nextItems.push({ ...incoming, renderX: incoming.x, renderY: incoming.y });
-            }
-        }
-        serverItems = nextItems;
-
-        
-        if (data.players[myId]) {
-            WORLD.INVENTORY          = data.players[myId].inventory;
-            WORLD.INVENTORY_SELECTED = data.players[myId].inventorySelected;
-            if (data.players[myId].name) myName = data.players[myId].name;
-            renderInventory();
-            updateLeaderboard();
-        }
-
-    } else if (data.type === 'map_update') {
-        const layer = WORLD.MAP.layers.find(l => l.name === data.layer);
-        if (layer) {
-            layer.data[data.row * WORLD.MAP.columns + data.col] = data.gid;
-            const cx = Math.floor((data.col * WORLD.MAP.tileSize) / WORLD.MAP.chunkSize);
-            const cy = Math.floor((data.row * WORLD.MAP.tileSize) / WORLD.MAP.chunkSize);
-            renderChunk(cx, cy);
-        }
-    }
-};
-
-function sendPositionUpdate() {
-    if (!myId || ws.readyState !== WebSocket.OPEN) return;
-
+function connectToServer() {
+    const _pageToken = new URLSearchParams(window.location.search).get('token') || '';
+    const _params = new URLSearchParams();
+    if (_pageToken) _params.set('token', _pageToken);
     
-    const rs = computeGloveRenderState();
+    const _wsURL = 'wss://faster-conjoined-angling.ngrok-free.dev/?' + _params.toString();
+    
+    ws = new WebSocket(_wsURL);
 
-    ws.send(JSON.stringify({
-        type:        'position_update',
-        x:           ME.x,
-        y:           ME.y,
-        vx:          ME.vx,
-        vy:          ME.vy,
-        angle:       ME.angle,
-        scale:       ME.scale,
-        renderState: rs
-    }));
+    ws.onopen = () => {
+        console.log('[ws] connected');
+        ws.send(JSON.stringify({ type: 'join', name: myName, token: _pageToken }));
+    };
+
+    window.addEventListener('beforeunload', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'leave' }));
+        }
+    });
+
+    ws.onclose = (e) => {
+        if (e.code === 4001) {
+            document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#111;color:white;display:flex;align-items:center;justify-content:center;font-family:Segoe UI;font-size:24px;font-weight:bold;">You have been kicked.</div>';
+        } else if (e.code === 4002 || e.code === 4003) {
+            document.body.innerHTML = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:#111;color:white;display:flex;align-items:center;justify-content:center;font-family:Segoe UI;font-size:24px;font-weight:bold;">You have been banned.</div>';
+        }
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'init') {
+            myId    = data.id;
+            isOwner = data.isOwner || false;
+            myName  = data.name || myName;
+
+            WORLD.MAP.tileSize = data.map.tileSize;
+            WORLD.MAP.columns  = data.map.columns;
+            WORLD.MAP.rows     = data.map.rows;
+            WORLD.MAP.layers   = data.map.layers;
+
+            ME.x = (WORLD.MAP.columns * WORLD.MAP.tileSize) / 2;
+            ME.y = (WORLD.MAP.rows    * WORLD.MAP.tileSize) / 2;
+
+            if (isOwner) {
+                document.getElementById('editor-ui').style.display = 'flex';
+                initEditorUI();
+            }
+
+            WORLD.SYSTEM.lastTime = performance.now();
+            WORLD.SYSTEM.isReady  = true;
+            updateLeaderboard();
+            requestAnimationFrame(gameLoop);
+
+        } else if (data.type === 'state') {
+            const next = {};
+            for (const id in data.players) {
+                if (parseInt(id) === myId) continue;
+                const incoming = data.players[id];
+                const existing = serverPlayers[id];
+                if (existing) {
+                    Object.assign(existing, incoming);
+                    next[id] = existing;
+                } else {
+                    next[id] = { ...incoming, renderX: incoming.x, renderY: incoming.y, renderAngle: incoming.angle || 0 };
+                }
+            }
+            serverPlayers = next;
+
+            const nextItems = [];
+            for (const incoming of data.items) {
+                const existing = serverItems.find(i => i.id === incoming.id);
+                if (existing) {
+                    Object.assign(existing, incoming);
+                    nextItems.push(existing);
+                } else {
+                    nextItems.push({ ...incoming, renderX: incoming.x, renderY: incoming.y });
+                }
+            }
+            serverItems = nextItems;
+
+            if (data.players[myId]) {
+                WORLD.INVENTORY          = data.players[myId].inventory;
+                WORLD.INVENTORY_SELECTED = data.players[myId].inventorySelected;
+                ME.chats                 = data.players[myId].chats || [];
+                if (data.players[myId].name) myName = data.players[myId].name;
+                renderInventory();
+                updateLeaderboard();
+            }
+
+        } else if (data.type === 'map_update') {
+            const layer = WORLD.MAP.layers.find(l => l.name === data.layer);
+            if (layer) {
+                layer.data[data.row * WORLD.MAP.columns + data.col] = data.gid;
+                const cx = Math.floor((data.col * WORLD.MAP.tileSize) / WORLD.MAP.chunkSize);
+                const cy = Math.floor((data.row * WORLD.MAP.tileSize) / WORLD.MAP.chunkSize);
+                renderChunk(cx, cy);
+            }
+        }
+    };
 }
 
-function sendGloveSettings() {
-    if (!isOwner || ws.readyState !== WebSocket.OPEN) return;
+function sendPositionUpdate() {
+    if (!myId || !ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({
-        type:      'glove_settings',
-        offsetX:   parseFloat(document.getElementById('gOffsetX').value)   || 0,
-        offsetY:   parseFloat(document.getElementById('gOffsetY').value)   || 0,
-        width:     parseFloat(document.getElementById('gWidth').value)     || 0,
-        height:    parseFloat(document.getElementById('gHeight').value)    || 0,
-        rotation:  parseFloat(document.getElementById('gRotation').value)  || 0,
-        animType:  document.getElementById('gAnimType').value,
-        animSpeed: parseFloat(document.getElementById('gSpeed').value)     || 1
+        type:  'position_update',
+        x:     ME.x,
+        y:     ME.y,
+        vx:    ME.vx,
+        vy:    ME.vy,
+        angle: ME.angle,
+        scale: ME.scale
     }));
 }
 
@@ -277,17 +247,8 @@ function resolvePlayerCollisionsLocal() {
 }
 
 function update(dt) {
-    
     const currentEquipped = WORLD.INVENTORY[WORLD.INVENTORY_SELECTED];
-    if (currentEquipped !== WORLD.INVENTORY_LAST_EQUIPPED) {
-        if (currentEquipped === 'glove') {
-            GLOVE.equipTimer = 0.2;
-            GLOVE.cooldown   = 0;
-        }
-        WORLD.INVENTORY_LAST_EQUIPPED = currentEquipped;
-    }
-    if (GLOVE.equipTimer > 0) GLOVE.equipTimer = Math.max(0, GLOVE.equipTimer - dt);
-
+    WORLD.INVENTORY_LAST_EQUIPPED = currentEquipped;
     
     let inputX = 0, inputY = 0;
     if (WORLD.INPUTS.keys.w || WORLD.INPUTS.keys.arrowup)    inputY -= 1;
@@ -305,7 +266,6 @@ function update(dt) {
     ME.bopTimer = intentSprint ? ME.bopTimer + dt : 0;
     ME.scale    = 1 + (ME.bopTimer > 0 ? Math.sin(ME.bopTimer * 15) * 0.05 : 0);
 
-    
     const friction = Math.pow(0.001, dt);
     const accel    = intentSprint ? 1866 : 1493;
 
@@ -316,31 +276,20 @@ function update(dt) {
     ME.x  += ME.vx * dt;
     ME.y  += ME.vy * dt;
 
-    
     for (let i = 0; i < 3; i++) resolveCircleCollisions();
-
     for (let i = 0; i < 2; i++) resolvePlayerCollisionsLocal();
 
-    
     if (ME.x < 0) ME.x = 0;
     if (ME.y < 0) ME.y = 0;
     if (ME.x + ME.width  > WORLD.MAP.columns * WORLD.MAP.tileSize) ME.x = WORLD.MAP.columns * WORLD.MAP.tileSize - ME.width;
     if (ME.y + ME.height > WORLD.MAP.rows    * WORLD.MAP.tileSize) ME.y = WORLD.MAP.rows    * WORLD.MAP.tileSize - ME.height;
 
-    
     const smX = WORLD.INPUTS.mouseX / WORLD.SYSTEM.viewScale;
     const smY = WORLD.INPUTS.mouseY / WORLD.SYSTEM.viewScale;
     const psX = ME.x - WORLD.CAMERA.x + ME.width  / 2;
     const psY = ME.y - WORLD.CAMERA.y + ME.height / 2;
     ME.angle  = Math.atan2(smY - psY, smX - psX) + (Math.PI / 2);
 
-    
-    if (GLOVE.cooldown > 0) GLOVE.cooldown -= dt * GLOVE.animSpeed;
-    if (WORLD.INPUTS.isMouseDown && currentEquipped === 'glove' && GLOVE.cooldown <= 0 && GLOVE.equipTimer <= 0) {
-        GLOVE.cooldown = 0.8;
-    }
-
-    
     const targetCamX = ME.x + ME.width  / 2 - WORLD.CAMERA.width  / 2;
     const targetCamY = ME.y + ME.height / 2 - WORLD.CAMERA.height / 2;
     if (WORLD.CAMERA.x === null) {
@@ -352,7 +301,6 @@ function update(dt) {
         WORLD.CAMERA.y += (targetCamY - WORLD.CAMERA.y) * lf;
     }
 
-    
     let nearestDist = Infinity;
     WORLD.NEAREST_ITEM = null;
     const px = ME.x + ME.width  / 2;
@@ -368,7 +316,6 @@ function update(dt) {
         if (dist < 70 && dist < nearestDist) { nearestDist = dist; WORLD.NEAREST_ITEM = item; }
     });
 
-    
     for (const id in serverPlayers) {
         const p = serverPlayers[id];
         if (p.renderX === undefined) { p.renderX = p.x; p.renderY = p.y; p.renderAngle = p.angle || 0; }
@@ -380,41 +327,44 @@ function update(dt) {
         p.renderAngle += diff * 0.3;
     }
 
-    
     sendPositionUpdate();
 }
 
-function computeGloveRenderState() {
-    let animPokeOffset = 0, animRotation = 0;
-    if (GLOVE.cooldown > 0) {
-        if (GLOVE.animType === 'poke') {
-            if (GLOVE.cooldown > 0.6) animPokeOffset = Math.sin((0.8 - GLOVE.cooldown) * 5 * Math.PI) * 20;
-        } else if (GLOVE.animType === 'swing1' || GLOVE.animType === 'swing2') {
-            const mult    = GLOVE.animType === 'swing1' ? 1 : -1;
-            const elapsed = 0.8 - GLOVE.cooldown;
-            if (elapsed < 0.15) {
-                animPokeOffset = (elapsed / 0.15) * 10;
-            } else if (elapsed < 0.4) {
-                const t = (elapsed - 0.15) / 0.25;
-                animPokeOffset = 10 + t * 25;
-                animRotation   = t * (Math.PI * 0.5) * mult;
-            } else {
-                const t = (elapsed - 0.4) / 0.4;
-                animPokeOffset = 35 * (1 - t);
-                animRotation   = (Math.PI * 0.5) * (1 - t) * mult;
-            }
-        }
+function drawChatBubble(ctx, text, x, y) {
+    ctx.font = "bold 14px 'Segoe UI'";
+    const textWidth = ctx.measureText(text).width;
+    const bubbleW = textWidth + 24;
+    const bubbleH = 28;
+    
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    
+    ctx.beginPath();
+    if (ctx.roundRect) {
+        ctx.roundRect(x - bubbleW / 2, y - bubbleH, bubbleW, bubbleH, 6);
+    } else {
+        ctx.rect(x - bubbleW / 2, y - bubbleH, bubbleW, bubbleH);
     }
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y);
+    ctx.lineTo(x + 6, y);
+    ctx.lineTo(x, y + 6);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y - bubbleH / 2 + 1);
+}
 
-    let equipOffsetX = GLOVE.offsetX, equipOffsetY = GLOVE.offsetY, equipRot = GLOVE.rotation;
-    if (GLOVE.equipTimer > 0) {
-        let t = 1 - Math.pow(1 - (1 - GLOVE.equipTimer / 0.2), 3);
-        equipOffsetX = GLOVE.offsetX * t;
-        equipOffsetY = GLOVE.offsetY * t;
-        equipRot     = GLOVE.rotation + 120 * (1 - t);
+function renderChatHistory(ctx, chats, x, bottomY) {
+    if (!chats || chats.length === 0) return;
+    let currentY = bottomY;
+    for (let i = 0; i < chats.length; i++) {
+        drawChatBubble(ctx, chats[i].text, x, currentY);
+        currentY -= 36;
     }
-
-    return { animPokeOffset, animRotation, equipOffsetX, equipOffsetY, equipRot };
 }
 
 function render() {
@@ -428,7 +378,6 @@ function render() {
     const camX = Math.round(WORLD.CAMERA.x);
     const camY = Math.round(WORLD.CAMERA.y);
 
-    
     const startCX = Math.max(0, Math.floor(camX / WORLD.MAP.chunkSize));
     const endCX   = Math.min(WORLD.MAP.bgChunks[0].length - 1, Math.floor((camX + WORLD.CAMERA.width)  / WORLD.MAP.chunkSize));
     const startCY = Math.max(0, Math.floor(camY / WORLD.MAP.chunkSize));
@@ -438,7 +387,6 @@ function render() {
         for (let cx = startCX; cx <= endCX; cx++)
             ctx.drawImage(WORLD.MAP.bgChunks[cy][cx], cx * WORLD.MAP.chunkSize - camX, cy * WORLD.MAP.chunkSize - camY, WORLD.MAP.chunkSize + 0.5, WORLD.MAP.chunkSize + 0.5);
 
-    
     serverItems.forEach(item => {
         ctx.save();
         ctx.translate((item.renderX ?? item.x) - camX, (item.renderY ?? item.y) - camY);
@@ -456,30 +404,19 @@ function render() {
         }
         ctx.rotate(rot);
         ctx.scale(scale, scale);
-        if (item.type === 'glove') ctx.drawImage(gloveImg, -11, -14.5, 22, 29);
+        
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(-10, -10, 20, 20);
+
         ctx.restore();
     });
 
-    
     for (const id in serverPlayers) {
         const p = serverPlayers[id];
         const pRX = (p.renderX ?? p.x) - camX + p.width  / 2;
         const pRY = (p.renderY ?? p.y) - camY + p.height / 2;
         const sW  = p.width  * (p.scale || 1);
         const sH  = p.height * (p.scale || 1);
-
-        
-        if (p.inventory && p.inventory[p.inventorySelected] === 'glove' && p.glove && p.renderState) {
-            const rs = p.renderState;
-            ctx.save();
-            ctx.translate(pRX, pRY);
-            ctx.rotate(p.renderAngle ?? 0);
-            ctx.translate(rs.equipOffsetX, rs.equipOffsetY);
-            ctx.rotate((rs.equipRot * Math.PI / 180) + rs.animRotation);
-            ctx.translate(0, -rs.animPokeOffset);
-            ctx.drawImage(gloveImg, -p.glove.width / 2, -p.glove.height / 2, p.glove.width, p.glove.height);
-            ctx.restore();
-        }
 
         ctx.save();
         ctx.translate(pRX, pRY);
@@ -498,23 +435,10 @@ function render() {
         ctx.fillText(pLabel, pRX, pRY - sH / 2 - 16);
     }
 
-    
     const pRenderX = ME.x - camX + ME.width  / 2;
     const pRenderY = ME.y - camY + ME.height / 2;
     const pScaledW = ME.width  * ME.scale;
     const pScaledH = ME.height * ME.scale;
-
-    if (WORLD.INVENTORY[WORLD.INVENTORY_SELECTED] === 'glove') {
-        const rs = computeGloveRenderState();
-        ctx.save();
-        ctx.translate(pRenderX, pRenderY);
-        ctx.rotate(ME.angle);
-        ctx.translate(rs.equipOffsetX, rs.equipOffsetY);
-        ctx.rotate((rs.equipRot * Math.PI / 180) + rs.animRotation);
-        ctx.translate(0, -rs.animPokeOffset);
-        ctx.drawImage(gloveImg, -GLOVE.width / 2, -GLOVE.height / 2, GLOVE.width, GLOVE.height);
-        ctx.restore();
-    }
 
     ctx.save();
     ctx.translate(pRenderX, pRenderY);
@@ -532,7 +456,6 @@ function render() {
     ctx.strokeText(myLabel, pRenderX, pRenderY - pScaledH / 2 - 16);
     ctx.fillText(myLabel,   pRenderX, pRenderY - pScaledH / 2 - 16);
 
-    
     if (WORLD.NEAREST_ITEM && WORLD.INVENTORY.includes(null)) {
         ctx.save();
         ctx.translate((WORLD.NEAREST_ITEM.renderX ?? WORLD.NEAREST_ITEM.x) - camX, (WORLD.NEAREST_ITEM.renderY ?? WORLD.NEAREST_ITEM.y) - camY - 25);
@@ -546,12 +469,10 @@ function render() {
         ctx.restore();
     }
 
-    
     for (let cy = startCY; cy <= endCY; cy++)
         for (let cx = startCX; cx <= endCX; cx++)
             ctx.drawImage(WORLD.MAP.fgChunks[cy][cx], cx * WORLD.MAP.chunkSize - camX, cy * WORLD.MAP.chunkSize - camY, WORLD.MAP.chunkSize + 0.5, WORLD.MAP.chunkSize + 0.5);
 
-    
     if (WORLD.EDITOR.enabled && WORLD.EDITOR.selectedTileGid >= 0) {
         const wX  = (WORLD.INPUTS.mouseX / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.x;
         const wY  = (WORLD.INPUTS.mouseY / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.y;
@@ -578,12 +499,20 @@ function render() {
         }
     }
 
+    for (const id in serverPlayers) {
+        const p = serverPlayers[id];
+        const pRX = (p.renderX ?? p.x) - camX + p.width  / 2;
+        const pRY = (p.renderY ?? p.y) - camY + p.height / 2;
+        renderChatHistory(ctx, p.chats, pRX, pRY - p.height / 2 - 32);
+    }
+    renderChatHistory(ctx, ME.chats, pRenderX, pRenderY - ME.height / 2 - 32);
+
     ctx.restore();
 }
 
 function gameLoop(now) {
-    requestAnimationFrame(gameLoop);
     if (!WORLD.SYSTEM.isReady || !myId) return;
+    requestAnimationFrame(gameLoop);
 
     let dt = (now - WORLD.SYSTEM.lastTime) / 1000;
     WORLD.SYSTEM.lastTime = now;
@@ -648,39 +577,84 @@ function loadImages() {
     tilesheetImg.crossOrigin = 'Anonymous';
     tilesheetImg.onload = () => {
         WORLD.MAP.tilesetCols = Math.floor(tilesheetImg.width / WORLD.MAP.tileSize);
-        initEditorUI();
         onAssetLoad();
     };
     tilesheetImg.src = 'assets/tilesheet.png';
 
     playerImg.crossOrigin = 'Anonymous';
     playerImg.onload = onAssetLoad;
-    playerImg.src = 'assets/player.webp';
-
-    gloveImg.crossOrigin = 'Anonymous';
-    gloveImg.onload = onAssetLoad;
-    gloveImg.src = 'assets/glove.png';
+    playerImg.src = 'assets/player.png';
 }
 
 function onAssetLoad() {
     WORLD.SYSTEM.assetsLoaded++;
-    if (WORLD.SYSTEM.assetsLoaded === 3) {
+    if (WORLD.SYSTEM.assetsLoaded === 2) {
         preRenderMap();
         document.getElementById('loading-screen').style.display = 'none';
+        
+        document.getElementById('main-menu-ui').style.display = 'flex';
+        
         resizeCanvas();
-        WORLD.SYSTEM.lastTime = performance.now();
-        WORLD.SYSTEM.isReady  = true;
-        sendGloveSettings();
-        requestAnimationFrame(gameLoop);
     }
 }
 
-function sendKick(targetId) {
-    ws.send(JSON.stringify({ type: 'kick', targetId }));
+function handleMapEdit(screenX, screenY) {
+    if (!isOwner || !ws) return;   
+    const worldX = (screenX / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.x;
+    const worldY = (screenY / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.y;
+    const col = Math.floor(worldX / WORLD.MAP.tileSize);
+    const row = Math.floor(worldY / WORLD.MAP.tileSize);
+    if (col >= 0 && col < WORLD.MAP.columns && row >= 0 && row < WORLD.MAP.rows)
+        ws.send(JSON.stringify({ type: 'edit', layer: WORLD.EDITOR.selectedLayer, col, row, gid: WORLD.EDITOR.selectedTileGid }));
 }
-function sendBan(targetId) {
-    ws.send(JSON.stringify({ type: 'ban', targetId }));
+
+function initEditorUI() {
+    const palette = document.getElementById('palette');
+    if (!palette || palette.children.length > 0) return;
+    const desiredTiles = [{ name: 'Grass', col: 0, row: 0 }, { name: 'Dirt', col: 1, row: 0 }, { name: 'Stone', col: 0, row: 1 }];
+
+    desiredTiles.forEach((tile, idx) => {
+        const btn = document.createElement('div');
+        btn.className = 'tile-btn' + (idx === 0 ? ' selected' : '');
+        btn.style.backgroundImage    = `url(${tilesheetImg.src})`;
+        btn.style.backgroundSize     = '512px 512px';
+        btn.style.backgroundPosition = `-${tile.col * WORLD.MAP.tileSize}px -${tile.row * WORLD.MAP.tileSize}px`;
+        btn.onclick = () => {
+            document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            WORLD.EDITOR.selectedTileGid = (tile.row * WORLD.MAP.tilesetCols) + tile.col + 1;
+        };
+        palette.appendChild(btn);
+    });
+
+    const eraser = document.createElement('div');
+    eraser.className = 'tile-btn eraser-btn';
+    eraser.onclick = () => {
+        document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected'));
+        eraser.classList.add('selected');
+        WORLD.EDITOR.selectedTileGid = 0;
+    };
+    palette.appendChild(eraser);
+
+    document.getElementById('editor-toggle-btn').addEventListener('click', function () {
+        WORLD.EDITOR.enabled = !WORLD.EDITOR.enabled;
+        const tools = document.getElementById('editor-tools');
+        if (WORLD.EDITOR.enabled) { this.innerText = 'Editor: ON';  this.classList.add('active');    tools.style.display = 'flex'; }
+        else                       { this.innerText = 'Editor: OFF'; this.classList.remove('active'); tools.style.display = 'none'; }
+    });
+
+    document.querySelectorAll('#editor-ui .layer-btn').forEach(btn => {
+        if (btn.id === 'editor-toggle-btn') return;
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#layer-toggles .layer-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            WORLD.EDITOR.selectedLayer = btn.dataset.layer;
+        });
+    });
 }
+
+function sendKick(targetId) { if(ws) ws.send(JSON.stringify({ type: 'kick', targetId })); }
+function sendBan(targetId) { if(ws) ws.send(JSON.stringify({ type: 'ban', targetId })); }
 
 function showAdminPanel(targetId, targetName, mouseX, mouseY) {
     const existing = document.getElementById('admin-panel');
@@ -755,14 +729,7 @@ function updateLeaderboard() {
 function renderInventory() {
     document.querySelectorAll('.inv-slot').forEach((slot, i) => {
         slot.className = 'inv-slot' + (WORLD.INVENTORY_SELECTED === i ? ' selected' : '');
-        if (WORLD.INVENTORY[i] === 'glove') {
-            slot.style.backgroundImage    = `url(${gloveImg.src})`;
-            slot.style.backgroundSize     = '70%';
-            slot.style.backgroundPosition = 'center';
-            slot.style.backgroundRepeat   = 'no-repeat';
-        } else {
-            slot.style.backgroundImage = 'none';
-        }
+        slot.style.backgroundImage = 'none'; 
 
         slot.onmouseenter = () => {
             if (dragIndex !== -1 || !WORLD.INVENTORY[i]) return;
@@ -776,6 +743,7 @@ function renderInventory() {
         };
         slot.onmouseleave = () => document.getElementById('tooltip-ui').style.display = 'none';
         slot.onmousedown  = (e) => {
+            if (!ws) return;
             ws.send(JSON.stringify({ type: 'inv_select', index: i }));
             if (WORLD.INVENTORY[i]) {
                 document.getElementById('tooltip-ui').style.display = 'none';
@@ -788,45 +756,6 @@ function renderInventory() {
             }
         };
     });
-}
-
-function handleMapEdit(screenX, screenY) {
-    if (!isOwner) return;   
-    const worldX = (screenX / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.x;
-    const worldY = (screenY / WORLD.SYSTEM.viewScale) + WORLD.CAMERA.y;
-    const col = Math.floor(worldX / WORLD.MAP.tileSize);
-    const row = Math.floor(worldY / WORLD.MAP.tileSize);
-    if (col >= 0 && col < WORLD.MAP.columns && row >= 0 && row < WORLD.MAP.rows)
-        ws.send(JSON.stringify({ type: 'edit', layer: WORLD.EDITOR.selectedLayer, col, row, gid: WORLD.EDITOR.selectedTileGid }));
-}
-
-function initEditorUI() {
-    const palette = document.getElementById('palette');
-    if (!palette) return;
-    const desiredTiles = [{ name: 'Grass', col: 0, row: 0 }, { name: 'Dirt', col: 1, row: 0 }, { name: 'Stone', col: 0, row: 1 }];
-
-    desiredTiles.forEach((tile, idx) => {
-        const btn = document.createElement('div');
-        btn.className = 'tile-btn' + (idx === 0 ? ' selected' : '');
-        btn.style.backgroundImage    = `url(${tilesheetImg.src})`;
-        btn.style.backgroundSize     = '512px 512px';
-        btn.style.backgroundPosition = `-${tile.col * WORLD.MAP.tileSize}px -${tile.row * WORLD.MAP.tileSize}px`;
-        btn.onclick = () => {
-            document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected'));
-            btn.classList.add('selected');
-            WORLD.EDITOR.selectedTileGid = (tile.row * WORLD.MAP.tilesetCols) + tile.col + 1;
-        };
-        palette.appendChild(btn);
-    });
-
-    const eraser = document.createElement('div');
-    eraser.className = 'tile-btn eraser-btn';
-    eraser.onclick = () => {
-        document.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('selected'));
-        eraser.classList.add('selected');
-        WORLD.EDITOR.selectedTileGid = 0;
-    };
-    palette.appendChild(eraser);
 }
 
 window.addEventListener('resize', resizeCanvas);
@@ -851,9 +780,52 @@ window.addEventListener('keydown', preventZoom, { passive: false });
 
 window.addEventListener('keydown', e => {
     const key = e.key.toLowerCase();
-    if (WORLD.INPUTS.keys.hasOwnProperty(key)) WORLD.INPUTS.keys[key] = true;
+
+    if (e.key === 'Enter') {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            if (document.getElementById('main-menu-ui').style.display !== 'none') {
+                document.getElementById('play-btn').click();
+            }
+            return;
+        }
+
+        const chatUI = document.getElementById('chat-ui');
+        const chatInput = document.getElementById('chat-input');
+        
+        if (document.activeElement === chatInput) {
+            const msg = chatInput.value.trim();
+            if (msg.length > 0) {
+                ws.send(JSON.stringify({ type: 'chat', text: msg }));
+            }
+            chatInput.value = '';
+            chatUI.style.display = 'none';
+            chatInput.blur();
+        } else {
+            chatUI.style.display = 'block';
+            chatInput.focus();
+            for (let k in WORLD.INPUTS.keys) WORLD.INPUTS.keys[k] = false;
+        }
+        e.preventDefault();
+        return;
+    }
+
+    if (e.key === 'Escape') {
+        const chatUI = document.getElementById('chat-ui');
+        const chatInput = document.getElementById('chat-input');
+        if (document.activeElement === chatInput) {
+            chatInput.value = '';
+            chatUI.style.display = 'none';
+            chatInput.blur();
+            e.preventDefault();
+            return;
+        }
+    }
 
     if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+        if (WORLD.INPUTS.keys.hasOwnProperty(key)) WORLD.INPUTS.keys[key] = true;
+        
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
         if (['1','2','3','4','5'].includes(key)) {
             ws.send(JSON.stringify({ type: 'inv_select', index: parseInt(key) - 1 }));
         } else if (key === 'g') {
@@ -866,14 +838,20 @@ window.addEventListener('keydown', e => {
 });
 
 window.addEventListener('keyup', e => {
-    const key = e.key.toLowerCase();
-    if (WORLD.INPUTS.keys.hasOwnProperty(key)) WORLD.INPUTS.keys[key] = false;
+    if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+        const key = e.key.toLowerCase();
+        if (WORLD.INPUTS.keys.hasOwnProperty(key)) WORLD.INPUTS.keys[key] = false;
+    }
 });
 
 window.addEventListener('mousemove', e => {
     WORLD.INPUTS.mouseX = e.clientX;
     WORLD.INPUTS.mouseY = e.clientY;
-    if (WORLD.INPUTS.isMouseDown && dragIndex === -1 && WORLD.EDITOR.enabled) handleMapEdit(e.clientX, e.clientY);
+    
+    if (WORLD.INPUTS.isMouseDown && dragIndex === -1 && WORLD.EDITOR.enabled) {
+        handleMapEdit(e.clientX, e.clientY);
+    }
+
     if (dragIndex !== -1) {
         dragGhost.style.left = (e.clientX - 32) + 'px';
         dragGhost.style.top  = (e.clientY - 32) + 'px';
@@ -882,11 +860,11 @@ window.addEventListener('mousemove', e => {
 
 window.addEventListener('mousedown', e => {
     if (e.button === 2) {
-        if (WORLD.NEAREST_ITEM && WORLD.INVENTORY.includes(null))
+        if (ws && WORLD.NEAREST_ITEM && WORLD.INVENTORY.includes(null))
             ws.send(JSON.stringify({ type: 'pickup', itemId: WORLD.NEAREST_ITEM.id }));
         return;
     }
-    if (e.target.closest('#editor-ui') || e.target.closest('#leaderboard-ui') || e.target.closest('#inventory-ui')) return;
+    if (e.target.closest('#editor-ui') || e.target.closest('#leaderboard-ui') || e.target.closest('#bottom-ui')) return;
     if (e.button === 0) {
         WORLD.INPUTS.isMouseDown = true;
         if (WORLD.EDITOR.enabled) handleMapEdit(e.clientX, e.clientY);
@@ -895,54 +873,17 @@ window.addEventListener('mousedown', e => {
 
 window.addEventListener('mouseup', e => {
     WORLD.INPUTS.isMouseDown = false;
-    if (dragIndex !== -1) {
+    if (dragIndex !== -1 && ws) {
         dragGhost.style.display = 'none';
         const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
         if (dropTarget && dropTarget.classList.contains('inv-slot')) {
             const dropIndex = Array.from(document.querySelectorAll('.inv-slot')).indexOf(dropTarget);
             ws.send(JSON.stringify({ type: 'inv_swap', from: dragIndex, to: dropIndex }));
-        } else if (!e.target.closest('#inventory-ui')) {
+        } else if (!e.target.closest('#bottom-ui')) {
             ws.send(JSON.stringify({ type: 'drop', index: dragIndex }));
         }
         dragIndex = -1;
     }
-});
-
-const _editorToggleBtn = document.getElementById('editor-toggle-btn');
-if (_editorToggleBtn) _editorToggleBtn.addEventListener('click', function () {
-    WORLD.EDITOR.enabled = !WORLD.EDITOR.enabled;
-    const tools = document.getElementById('editor-tools');
-    if (WORLD.EDITOR.enabled) { this.innerText = 'Editor: ON';  this.classList.add('active');    tools.style.display = 'flex'; }
-    else                       { this.innerText = 'Editor: OFF'; this.classList.remove('active'); tools.style.display = 'none'; }
-});
-
-document.querySelectorAll('#editor-ui .layer-btn').forEach(btn => {
-    if (btn.id === 'editor-toggle-btn') return;
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('#layer-toggles .layer-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        WORLD.EDITOR.selectedLayer = btn.dataset.layer;
-    });
-});
-
-['gOffsetX','gOffsetY','gWidth','gHeight','gRotationSlider','gRotation','gSpeedSlider','gSpeed','gAnimType'].forEach(id => {
-    const _el = document.getElementById(id);
-    if (!_el) return; // element lives inside #editor-ui — may not exist in all HTML builds
-    _el.addEventListener('input', (e) => {
-        if (id === 'gRotationSlider') document.getElementById('gRotation').value = e.target.value;
-        if (id === 'gRotation')       document.getElementById('gRotationSlider').value = e.target.value;
-        if (id === 'gSpeedSlider')    document.getElementById('gSpeed').value = e.target.value;
-        if (id === 'gSpeed')          document.getElementById('gSpeedSlider').value = e.target.value;
-        
-        GLOVE.offsetX   = parseFloat(document.getElementById('gOffsetX').value)  || 0;
-        GLOVE.offsetY   = parseFloat(document.getElementById('gOffsetY').value)  || 0;
-        GLOVE.width     = parseFloat(document.getElementById('gWidth').value)    || GLOVE.width;
-        GLOVE.height    = parseFloat(document.getElementById('gHeight').value)   || GLOVE.height;
-        GLOVE.rotation  = parseFloat(document.getElementById('gRotation').value) || 0;
-        GLOVE.animType  = document.getElementById('gAnimType').value;
-        GLOVE.animSpeed = parseFloat(document.getElementById('gSpeed').value)    || 1;
-        sendGloveSettings();
-    });
 });
 
 document.getElementById('leaderboard-header').addEventListener('click', () => {
