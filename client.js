@@ -908,7 +908,8 @@ window.addEventListener('mouseup', e => {
     }
 });
 
-document.getElementById('editor-toggle-btn').addEventListener('click', function () {
+const _editorToggleBtn = document.getElementById('editor-toggle-btn');
+if (_editorToggleBtn) _editorToggleBtn.addEventListener('click', function () {
     WORLD.EDITOR.enabled = !WORLD.EDITOR.enabled;
     const tools = document.getElementById('editor-tools');
     if (WORLD.EDITOR.enabled) { this.innerText = 'Editor: ON';  this.classList.add('active');    tools.style.display = 'flex'; }
@@ -925,7 +926,9 @@ document.querySelectorAll('#editor-ui .layer-btn').forEach(btn => {
 });
 
 ['gOffsetX','gOffsetY','gWidth','gHeight','gRotationSlider','gRotation','gSpeedSlider','gSpeed','gAnimType'].forEach(id => {
-    document.getElementById(id).addEventListener('input', (e) => {
+    const _el = document.getElementById(id);
+    if (!_el) return; // element lives inside #editor-ui — may not exist in all HTML builds
+    _el.addEventListener('input', (e) => {
         if (id === 'gRotationSlider') document.getElementById('gRotation').value = e.target.value;
         if (id === 'gRotation')       document.getElementById('gRotationSlider').value = e.target.value;
         if (id === 'gSpeedSlider')    document.getElementById('gSpeed').value = e.target.value;
