@@ -63,7 +63,10 @@ const dragGhost = document.createElement('div');
 dragGhost.id = 'drag-ghost';
 document.body.appendChild(dragGhost);
 
-ws.onopen = () => console.log('[ws] connected');
+ws.onopen = () => {
+    console.log('[ws] connected');
+    if (_pageToken) ws.send(JSON.stringify({ type: 'auth', token: _pageToken }));
+};
 
 window.addEventListener('beforeunload', () => {
     if (ws.readyState === WebSocket.OPEN) {
@@ -104,6 +107,10 @@ ws.onmessage = (event) => {
 
         document.getElementById('loading-text').innerText = 'LOADING ASSETS...';
         loadImages();
+
+    } else if (data.type === 'auth_ok') {
+        isOwner = true;
+        initEditorUI();
 
     } else if (data.type === 'state') {
         
