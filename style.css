@@ -26,6 +26,60 @@ body, html {
     z-index: 9999;
 }
 
+#main-menu-ui {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: none; 
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000;
+}
+
+#username-input {
+    background: rgba(0, 0, 0, 0.6);
+    color: #ffffff;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 18px;
+    font-weight: bold;
+    width: 280px;
+    text-align: center;
+    margin-bottom: 20px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+#username-input:focus {
+    border-color: #ffffff;
+}
+
+#play-btn {
+    background-color: #ff8800;
+    color: white;
+    border: none;
+    padding: 14px 48px;
+    font-size: 20px;
+    font-weight: bold;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    cursor: pointer;
+    border-radius: 6px;
+    box-shadow: 0px 4px 0px #cc6600;
+    transition: transform 0.1s, background-color 0.1s;
+}
+
+#play-btn:hover {
+    background-color: #ff9911;
+}
+
+#play-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0px 0px 0px #cc6600;
+}
+
 #editor-ui {
     position: fixed;
     top: 10px;
@@ -79,36 +133,13 @@ body, html {
     transition: outline-color 0.1s;
 }
 
-.tile-btn:hover {
-    outline-color: #ffffff;
-    z-index: 1;
-}
-
-.tile-btn.selected {
+.tile-btn:hover, .tile-btn.selected {
     outline-color: #ffffff;
     z-index: 1;
 }
 
 .eraser-btn {
     background-color: rgba(0, 0, 0, 0.6);
-}
-
-#glove-ui {
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 10px;
-    color: white;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    font-size: 13px;
-    width: 170px;
-}
-
-#glove-ui input[type="number"] {
-    background: #333;
-    color: white;
-    border: 1px solid #555;
-    text-align: center;
 }
 
 #leaderboard-ui {
@@ -162,14 +193,20 @@ body, html {
     margin-bottom: 2px;
 }
 
-#inventory-ui {
+#bottom-ui {
     position: fixed;
     bottom: 15px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 6px;
+    flex-direction: column;
+    gap: 8px;
     z-index: 1000;
+}
+
+#inventory-ui {
+    display: flex;
+    gap: 6px;
 }
 
 .inv-slot {
@@ -185,6 +222,24 @@ body, html {
 .inv-slot:hover, .inv-slot.selected {
     outline-color: #ffffff;
     z-index: 1;
+}
+
+#health-bar-bg {
+    width: 100%;
+    height: 18px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 9px;
+    box-sizing: border-box;
+    padding: 2px;
+}
+
+#health-bar-fill {
+    width: 100%;
+    height: 100%;
+    background-color: #ff4444;
+    border-radius: 5px;
+    transition: width 0.2s ease-out;
 }
 
 #drag-ghost {
@@ -215,4 +270,32 @@ body, html {
     padding: 8px 14px;
     font-weight: bold;
     font-size: 13px;
+}
+
+#chat-ui {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 12px 20px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    z-index: 2000;
+    display: none;
+}
+
+#chat-input {
+    background: transparent;
+    color: #ffffff;
+    border: none;
+    outline: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+    width: 400px;
+    text-align: center;
+}
+
+#chat-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
 }
