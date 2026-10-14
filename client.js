@@ -49,6 +49,9 @@ let dragIndex = -1;
 const dragGhost = document.createElement('div');
 dragGhost.id = 'drag-ghost';
 document.body.appendChild(dragGhost);
+
+// ------------- START CONNECTION LOGIC -------------
+
 document.getElementById('play-btn').addEventListener('click', () => {
     const nameInp = document.getElementById('username-input').value.trim();
     myName = nameInp || 'Player' + Math.floor(Math.random() * 1000);
@@ -61,6 +64,7 @@ function connectToServer() {
     const _params = new URLSearchParams();
     if (_pageToken) _params.set('token', _pageToken);
     
+    // CHANGE THIS URL IF NGROK CHANGES!
     const _wsURL = 'wss://faster-conjoined-angling.ngrok-free.dev/?' + _params.toString();
     
     ws = new WebSocket(_wsURL);
@@ -157,6 +161,7 @@ function connectToServer() {
         }
     };
 }
+// ------------- END CONNECTION LOGIC -------------
 
 function sendPositionUpdate() {
     if (!myId || !ws || ws.readyState !== WebSocket.OPEN) return;
@@ -592,6 +597,7 @@ function onAssetLoad() {
         preRenderMap();
         document.getElementById('loading-screen').style.display = 'none';
         
+        // Show Main Menu Instead of Auto-Joining
         document.getElementById('main-menu-ui').style.display = 'flex';
         
         resizeCanvas();
@@ -783,6 +789,7 @@ window.addEventListener('keydown', e => {
 
     if (e.key === 'Enter') {
         if (!ws || ws.readyState !== WebSocket.OPEN) {
+            // Check if user pressed Enter inside Main Menu input
             if (document.getElementById('main-menu-ui').style.display !== 'none') {
                 document.getElementById('play-btn').click();
             }
