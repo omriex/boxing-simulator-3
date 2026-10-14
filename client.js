@@ -110,6 +110,77 @@ ws.onmessage = (event) => {
 
     } else if (data.type === 'auth_ok') {
         isOwner = true;
+        // editor-ui was removed from DOM on init (non-owner path) — rebuild it
+        if (!document.getElementById('editor-ui')) {
+            const ui = document.createElement('div');
+            ui.id = 'editor-ui';
+            ui.innerHTML = `
+                <button id="editor-toggle-btn" class="layer-btn">Editor: OFF</button>
+                <div id="editor-tools" style="display:none">
+                    <div id="layer-toggles">
+                        <button class="layer-btn active" data-layer="background">BG</button>
+                        <button class="layer-btn" data-layer="floor2">Floor2</button>
+                        <button class="layer-btn" data-layer="walls">Walls</button>
+                        <button class="layer-btn" data-layer="trees">Trees</button>
+                    </div>
+                    <div id="palette"></div>
+                    <div id="glove-settings">
+                        <label>OffsetX <input id="gOffsetX" type="number" value="20" step="1"></label>
+                        <label>OffsetY <input id="gOffsetY" type="number" value="-26" step="1"></label>
+                        <label>Width   <input id="gWidth"   type="number" value="22" step="1"></label>
+                        <label>Height  <input id="gHeight"  type="number" value="29" step="1"></label>
+                        <label>Rot <input id="gRotationSlider" type="range" min="-360" max="360" value="0">
+                                   <input id="gRotation" type="number" value="0" step="1"></label>
+                        <label>Speed <input id="gSpeedSlider" type="range" min="0.1" max="10" step="0.1" value="1.2">
+                                     <input id="gSpeed" type="number" value="1.2" step="0.1"></label>
+                        <label>Anim <select id="gAnimType">
+                            <option value="none">none</option>
+                            <option value="poke">poke</option>
+                            <option value="swing1">swing1</option>
+                            <option value="swing2" selected>swing2</option>
+                        </select></label>
+                    </div>
+                </div>`;
+            document.body.appendChild(ui);
+
+            // rewire editor toggle button
+            document.getElementById('editor-toggle-btn').addEventListener('click', function () {
+                WORLD.EDITOR.enabled = !WORLD.EDITOR.enabled;
+                const tools = document.getElementById('editor-tools');
+                if (WORLD.EDITOR.enabled) { this.innerText = 'Editor: ON';  this.classList.add('active');    tools.style.display = 'flex'; }
+                else                       { this.innerText = 'Editor: OFF'; this.classList.remove('active'); tools.style.display = 'none'; }
+            });
+
+            // rewire layer buttons
+            document.querySelectorAll('#editor-ui .layer-btn').forEach(btn => {
+                if (btn.id === 'editor-toggle-btn') return;
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('#layer-toggles .layer-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    WORLD.EDITOR.selectedLayer = btn.dataset.layer;
+                });
+            });
+
+            // rewire glove sliders
+            ['gOffsetX','gOffsetY','gWidth','gHeight','gRotationSlider','gRotation','gSpeedSlider','gSpeed','gAnimType'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('input', (e) => {
+                    if (id === 'gRotationSlider') document.getElementById('gRotation').value = e.target.value;
+                    if (id === 'gRotation')       document.getElementById('gRotationSlider').value = e.target.value;
+                    if (id === 'gSpeedSlider')    document.getElementById('gSpeed').value = e.target.value;
+                    if (id === 'gSpeed')          document.getElementById('gSpeedSlider').value = e.target.value;
+                    GLOVE.offsetX   = parseFloat(document.getElementById('gOffsetX').value)  || 0;
+                    GLOVE.offsetY   = parseFloat(document.getElementById('gOffsetY').value)  || 0;
+                    GLOVE.width     = parseFloat(document.getElementById('gWidth').value)    || GLOVE.width;
+                    GLOVE.height    = parseFloat(document.getElementById('gHeight').value)   || GLOVE.height;
+                    GLOVE.rotation  = parseFloat(document.getElementById('gRotation').value) || 0;
+                    GLOVE.animType  = document.getElementById('gAnimType').value;
+                    GLOVE.animSpeed = parseFloat(document.getElementById('gSpeed').value)    || 1;
+                    sendGloveSettings();
+                });
+            });
+        }
         initEditorUI();
 
     } else if (data.type === 'state') {
